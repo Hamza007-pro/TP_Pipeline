@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # MySQL Service
+  mysql:
+    image: mysql:latest
+    container_name: mysql-container1
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    networks:
+      - microservices-network
+
+  # Consul Service
+  consul:
+    image: consul:1.15.4
+    container_name: consul-container
+    ports:
+      - "8500:8500"
+    networks:
+      - microservices-network
+
+  # Gateway Service
+  gateway-service:
+    build:
+      context: ./Gateway
+    ports:
+      - "8888:8888"
+    depends_on:
+      - mysql
+      - consul
+    networks:
+      - microservices-network
+    environment:
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: 8500
+      SPRING_CLOUD_CONSUL_DISCOVERY_ENABLED: 'true'
+
+  # Client Service
+  client-service:
+    build:
+      context: ./client
+    ports:
+      - "8083:8083"
+    depends_on:
+      - mysql
+      - consul
+      - gateway-service
+    networks:
+      - microservices-network
+    environment:
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: 8500
+      SPRING_CLOUD_CONSUL_DISCOVERY_ENABLED: 'true'
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/Micro_ClientDB?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/bin/mysql --user=root --password=root --execute \"SHOW DATABASES;\""]
+      interval: 5s
+      timeout: 2s
+      retries: 100
+
+  # Voiture Service
+  voiture-service:
+    build:
+      context: ./Voiture
+    ports:
+      - "8082:8082"
+    depends_on:
+      - mysql
+      - consul
+      - gateway-service
+    networks:
+      - microservices-network
+    environment:
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: 8500
+      SPRING_CLOUD_CONSUL_DISCOVERY_ENABLED: 'true'
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/Micro_VoitureDB?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/bin/mysql --user=root --password=root --execute \"SHOW DATABASES;\""]
+      interval: 5s
+      timeout: 2s
+      retries: 100
+
+  # SonarQube Service
+  sonarqube:
+    image: sonarqube:community
+    ports:
+      - "30000:30000"
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    networks:
+      - microservices-network
+
+networks:
+  microservices-network:
+    driver: bridge
